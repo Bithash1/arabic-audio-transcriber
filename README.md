@@ -34,6 +34,26 @@ pip install -r requirements.txt
 
 ## Usage
 
+### GUI（推荐）
+
+下载 GitHub Releases 中适合自己系统的压缩包，解压后运行：
+
+- Windows：双击 `ArabicAudioTranscriber.exe`
+- macOS：双击 `ArabicAudioTranscriber.app`
+- Linux：运行 `ArabicAudioTranscriber`
+
+选择音频或视频、模型和输出文件夹，然后点击“开始转写”即可。首次选择某个模型时会自动下载模型文件，因此需要联网；下载完成后可以离线使用。音频始终只在本机处理。
+
+从源码启动 GUI：
+
+```bash
+python gui.py
+```
+
+Windows 用户也可以双击 `run_gui.bat`。
+
+### Terminal
+
 Run directly:
 
 ```bash
@@ -124,10 +144,23 @@ because large-v3 may be slow on low-performance machines.
 
 ## Roadmap
 
-- [ ] GUI version
-- [ ] Windows executable release
+- [x] GUI version
+- [x] Windows / macOS / Linux executable release workflow
 - [ ] Batch transcription
-- [ ] Model selection in interface
+- [x] Model selection in interface
+
+---
+
+## Creating a Release（维护者）
+
+推送以 `v` 开头的 tag 后，GitHub Actions 会分别构建 Windows、macOS（Apple Silicon）和 Linux 安装包，并自动附加到对应的 GitHub Release：
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+也可以在 Actions 页手动运行 `Build release`，仅生成可下载的构建产物，不创建 Release。
 
 ---
 

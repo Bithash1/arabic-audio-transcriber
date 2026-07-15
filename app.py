@@ -4,7 +4,8 @@ import argparse
 import sys
 import traceback
 from pathlib import Path
-from typing import Optional
+from threading import Event
+from typing import Callable, Optional
 
 from faster_whisper import WhisperModel
 
@@ -13,6 +14,13 @@ SUPPORTED_EXTS = {
     ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg",
     ".mp4", ".mkv", ".mov", ".avi", ".webm"
 }
+
+LogCallback = Callable[[str], None]
+ProgressCallback = Callable[[float, float], None]
+
+
+class TranscriptionCancelled(RuntimeError):
+    """Raised when a caller asks an in-progress transcription to stop."""
 
 
 def format_timestamp(seconds: float) -> str:
@@ -65,7 +73,12 @@ def resolve_output_dir(audio_path: Path, output_dir: Optional[str]) -> Path:
     return out_dir
 
 
-def load_model_with_fallback(model_name: str, device: str, compute_type: str) -> tuple[WhisperModel, str, str]:
+def load_model_with_fallback(
+    model_name: str,
+    device: str,
+    compute_type: str,
+    log: LogCallback = print,
+) -> tuple[WhisperModel, str, str]:
     attempts: list[tuple[str, str]] = []
 
     if device == "auto":
@@ -81,12 +94,12 @@ def load_model_with_fallback(model_name: str, device: str, compute_type: str) ->
     last_error = None
     for dev, ctype in attempts:
         try:
-            print(f"\n[1/4] 正在加载模型：{model_name} | device={dev} | compute_type={ctype}")
+            log(f"[1/4] 正在加载模型：{model_name} | device={dev} | compute_type={ctype}")
             model = WhisperModel(model_name, device=dev, compute_type=ctype)
             return model, dev, ctype
         except Exception as exc:  # pragma: no cover
             last_error = exc
-            print(f"加载失败：device={dev}, compute_type={ctype}")
+            log(f"加载失败：device={dev}, compute_type={ctype}")
 
     raise RuntimeError(f"模型加载失败：{last_error}") from last_error
 
@@ -109,13 +122,21 @@ def transcribe_file(
     compute_type: str,
     beam_size: int,
     vad_filter: bool,
+    log: LogCallback = print,
+    progress: Optional[ProgressCallback] = None,
+    cancel_event: Optional[Event] = None,
 ) -> tuple[Path, Path, object]:
-    model, actual_device, actual_compute_type = load_model_with_fallback(model_name, device, compute_type)
+    model, actual_device, actual_compute_type = load_model_with_fallback(
+        model_name, device, compute_type, log=log
+    )
 
-    print("[2/4] 模型加载完成")
-    print(f"      实际运行设备：{actual_device}")
-    print(f"      实际计算类型：{actual_compute_type}")
-    print("[3/4] 开始转写，请耐心等待…")
+    log("[2/4] 模型加载完成")
+    log(f"      实际运行设备：{actual_device}")
+    log(f"      实际计算类型：{actual_compute_type}")
+    log("[3/4] 开始转写，请耐心等待…")
+
+    if cancel_event and cancel_event.is_set():
+        raise TranscriptionCancelled("转写已由用户取消。")
 
     segments, info = model.transcribe(
         str(audio_path),
@@ -126,18 +147,35 @@ def transcribe_file(
 
     txt_path = output_dir / f"{audio_path.stem}.txt"
     srt_path = output_dir / f"{audio_path.stem}.srt"
+    txt_part = txt_path.with_suffix(txt_path.suffix + ".part")
+    srt_part = srt_path.with_suffix(srt_path.suffix + ".part")
 
-    print("[4/4] 正在写入文件…")
-    with open(txt_path, "w", encoding="utf-8") as f_txt, open(srt_path, "w", encoding="utf-8") as f_srt:
-        for i, segment in enumerate(segments, start=1):
-            text = segment.text.strip()
-            if not text:
-                continue
+    log("[4/4] 正在写入文件…")
+    try:
+        with open(txt_part, "w", encoding="utf-8") as f_txt, open(srt_part, "w", encoding="utf-8") as f_srt:
+            subtitle_index = 0
+            for segment in segments:
+                if cancel_event and cancel_event.is_set():
+                    raise TranscriptionCancelled("转写已由用户取消。")
 
-            f_txt.write(text + "\n")
-            f_srt.write(f"{i}\n")
-            f_srt.write(f"{format_timestamp(segment.start)} --> {format_timestamp(segment.end)}\n")
-            f_srt.write(text + "\n\n")
+                text = segment.text.strip()
+                if not text:
+                    continue
+
+                subtitle_index += 1
+                f_txt.write(text + "\n")
+                f_srt.write(f"{subtitle_index}\n")
+                f_srt.write(f"{format_timestamp(segment.start)} --> {format_timestamp(segment.end)}\n")
+                f_srt.write(text + "\n\n")
+                if progress:
+                    progress(float(segment.end), float(getattr(info, "duration", 0.0) or 0.0))
+
+        txt_part.replace(txt_path)
+        srt_part.replace(srt_path)
+    except Exception:
+        txt_part.unlink(missing_ok=True)
+        srt_part.unlink(missing_ok=True)
+        raise
 
     return txt_path, srt_path, info
 
