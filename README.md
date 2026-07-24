@@ -146,8 +146,10 @@ because large-v3 may be slow on low-performance machines.
 
 - [x] GUI version
 - [x] Windows / macOS / Linux executable release workflow
-- [ ] Batch transcription
 - [x] Model selection in interface
+- [ ] Access the API of other AI platforms
+- [ ] Batch transcription
+
 
 ---
 
