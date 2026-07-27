@@ -10,6 +10,7 @@ from typing import Callable, Optional
 from faster_whisper import WhisperModel
 
 DEFAULT_MODEL = "medium"
+SUPPORTED_MODELS = ("small", "medium", "large-v3")
 SUPPORTED_EXTS = {
     ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg",
     ".mp4", ".mkv", ".mov", ".avi", ".webm"
@@ -78,6 +79,7 @@ def load_model_with_fallback(
     device: str,
     compute_type: str,
     log: LogCallback = print,
+    model_path: Optional[Path] = None,
 ) -> tuple[WhisperModel, str, str]:
     attempts: list[tuple[str, str]] = []
 
@@ -95,7 +97,13 @@ def load_model_with_fallback(
     for dev, ctype in attempts:
         try:
             log(f"[1/4] 正在加载模型：{model_name} | device={dev} | compute_type={ctype}")
-            model = WhisperModel(model_name, device=dev, compute_type=ctype)
+            model_source = str(model_path) if model_path else model_name
+            model = WhisperModel(
+                model_source,
+                device=dev,
+                compute_type=ctype,
+                local_files_only=bool(model_path),
+            )
             return model, dev, ctype
         except Exception as exc:  # pragma: no cover
             last_error = exc
@@ -125,9 +133,10 @@ def transcribe_file(
     log: LogCallback = print,
     progress: Optional[ProgressCallback] = None,
     cancel_event: Optional[Event] = None,
+    model_path: Optional[Path] = None,
 ) -> tuple[Path, Path, object]:
     model, actual_device, actual_compute_type = load_model_with_fallback(
-        model_name, device, compute_type, log=log
+        model_name, device, compute_type, log=log, model_path=model_path
     )
 
     log("[2/4] 模型加载完成")
@@ -186,7 +195,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("input", nargs="?", help="音频/视频文件路径")
     parser.add_argument("--output-dir", help="输出目录，默认在源文件旁自动创建")
-    parser.add_argument("--model", default=DEFAULT_MODEL, help="Whisper 模型名，默认 medium")
+    parser.add_argument(
+        "--model",
+        choices=SUPPORTED_MODELS,
+        default=DEFAULT_MODEL,
+        help="Whisper 模型名，默认 medium（推荐）",
+    )
     parser.add_argument("--language", default="ar", help="语言代码，默认 ar（阿拉伯语）")
     parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto", help="运行设备，默认 auto")
     parser.add_argument("--compute-type", default="int8", help="计算类型，CPU 默认建议 int8")

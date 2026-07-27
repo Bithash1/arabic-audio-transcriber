@@ -1,187 +1,183 @@
 # Arabic Audio Transcriber
 
-An offline Arabic speech-to-text tool based on `faster-whisper`, designed for beginners and lightweight local transcription.
+[Simplified Chinese](README.zh-CN.md)
 
-It supports Arabic audio/video input and automatically exports transcription results as `.txt` and `.srt` subtitle files.
-
----
+Arabic Audio Transcriber is a beginner-friendly desktop application for transcribing Arabic audio and video with `faster-whisper`. It exports plain text and SRT subtitles, works offline after the selected Whisper model has been downloaded, and provides optional AI-assisted correction, translation, and Arabic diacritization.
 
 ## Features
 
-- Offline transcription (no cloud upload required)
-- Arabic audio and video support
-- Automatic TXT and SRT output
-- Automatic CUDA → CPU fallback
-- Simple file selection for non-technical users
-- Suitable for local study, news analysis, and subtitle generation
+- Local Arabic speech-to-text processing; audio and video files are never uploaded
+- TXT and SRT exports
+- Separate local transcription and optional AI processing workflows
+- Whisper model availability checks at startup and before every transcription
+- Custom model storage directory
+- Resumable model downloads with percentage progress
+- `small`, `medium` (recommended), and `large-v3` model choices
+- Optional AI correction for clear ASR errors and incorrectly joined or separated words
+- Optional translation into Simplified Chinese or English
+- Optional Arabic diacritization (Tashkeel)
+- Resumable AI processing with token usage reporting
+- Original transcription files are never overwritten by AI output
+- Automatic CUDA-to-CPU fallback
 
----
+## Download
 
-## Requirements
+Download the appropriate archive from [GitHub Releases](https://github.com/Bithash1/arabic-audio-transcriber/releases):
+
+- Windows x64: `ArabicAudioTranscriber-Windows-x64.zip`
+- macOS Apple Silicon: `ArabicAudioTranscriber-macOS-Apple-Silicon.zip`
+
+Extract the archive before running the application.
+
+On Windows, launch `ArabicAudioTranscriber.exe`. On macOS, launch `ArabicAudioTranscriber.app`. Because the macOS build is not notarized, you may need to right-click the application and select **Open** the first time.
+
+## Local Transcription
+
+1. Select an Arabic audio or video file.
+2. Optionally select an output directory.
+3. Select a Whisper model.
+4. Click **Start Local Transcription**.
+
+The application checks each model and displays one of these states:
+
+- Downloaded
+- Not downloaded
+- Repair required
+- Storage location unavailable
+
+A model requires an internet connection the first time it is downloaded. Once downloaded, that model can be used offline. Interrupted downloads can resume later.
+
+The model selection intentionally excludes `tiny` and `base`. `medium` is recommended for a better balance between accuracy and runtime.
+
+## Model Storage
+
+The application displays the effective model cache path and lets you choose another directory. The default Hugging Face cache is usually:
+
+- Windows: `C:\Users\<username>\.cache\huggingface\hub`
+- macOS and Linux: `~/.cache/huggingface/hub`
+
+Environment variables such as `HF_HOME` or `HUGGINGFACE_HUB_CACHE` can change the effective path; use the path displayed by the application as the authoritative value.
+
+Changing the model directory affects new downloads. Existing models in both the custom and default cache are detected. If a custom location becomes unavailable, for example because an external drive is disconnected, the application asks you to reconnect it or choose another directory instead of silently downloading to the system drive.
+
+## Optional AI Processing
+
+Local transcription does not require an API key. After transcription, you may independently select:
+
+- Text correction
+- Translation
+- Arabic diacritization
+- Any combination of the above
+
+When correction is selected with another operation, the order is:
+
+```text
+Original transcript → Correction → Translation and/or diacritization
+```
+
+AI processing sends only transcript text to the configured API service. Audio and video files are not uploaded. You must provide your own DeepSeek-compatible API key. The key can optionally be stored in the operating system keychain.
+
+Processing is saved after every batch. Valid completed results are reused when a task is resumed, avoiding unnecessary repeated requests and token usage.
+
+## Output Files
+
+For an input file named `example.mp3`, output may include:
+
+```text
+example_transcript/
+├── example.txt
+├── example.srt
+├── example.transcriber.json
+├── example_ar_corrected.txt
+├── example_ar_corrected.srt
+├── example_ar_diacritized.txt
+├── example_ar_diacritized.srt
+├── example_translated.txt
+├── example_translated.srt
+└── example_bilingual.srt
+```
+
+`example.txt` and `example.srt` are the original local transcription and are never overwritten. AI result files are generated only for the selected operations. The `.transcriber.json` file stores resumable AI-processing state.
+
+## Run from Source
 
 Recommended environment:
 
-- Python 3.10 or 3.11
-- Windows / macOS / Linux
+- Python 3.10 or newer
+- Windows, macOS, or Linux
 
 Install dependencies:
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
----
-
-## Usage
-
-### GUI（推荐）
-
-下载 GitHub Releases 中适合自己系统的压缩包，解压后运行：
-
-- Windows：双击 `ArabicAudioTranscriber.exe`
-- macOS：双击 `ArabicAudioTranscriber.app`
-- Linux：运行 `ArabicAudioTranscriber`
-
-选择音频或视频、模型和输出文件夹，然后点击“开始转写”即可。首次选择某个模型时会自动下载模型文件，因此需要联网；下载完成后可以离线使用。音频始终只在本机处理。
-
-从源码启动 GUI：
+Start the GUI:
 
 ```bash
 python gui.py
 ```
 
-Windows 用户也可以双击 `run_gui.bat`。
+Windows users can also run `run_gui.bat`.
 
-### Terminal
+### Terminal Usage
 
-Run directly:
+Start with a file picker:
 
 ```bash
 python app.py
 ```
 
-Or on Windows, double-click:
-
-```text
-run_transcriber.bat
-```
-
-If no file path is provided, the program will open a file selection window automatically.
-
-You can also specify a file manually:
+Or pass a media file directly:
 
 ```bash
-python app.py --input your_audio.mp4
+python app.py path/to/audio.mp3
 ```
----
 
-## Output
-
-The transcription result will be saved in a folder next to the source file.
-
-Example:
-
-```text
-example_transcript/
-├── example.txt
-└── example.srt
-```
----
-
-## Device Behavior
-
-By default, the program tries GPU first:
-	•	CUDA available → GPU acceleration
-	•	CUDA unavailable → CPU fallback
-
-You may also force CPU mode:
+Useful options:
 
 ```bash
-python app.py --device cpu
-```
----
-
-## Model Selection
-
-Default model:
-
-```text
-medium
+python app.py path/to/audio.mp3 --model medium --device cpu
 ```
 
-You may choose another model:
+Run `python app.py --help` for all options.
+
+## Development
+
+Run tests:
 
 ```bash
-python app.py --model small
+python -m unittest discover -s tests -v
 ```
 
-Available options:
-	•	tiny
-	•	base
-	•	small
-	•	medium
-	•	large-v3
+Build the application locally:
 
-CPU users are recommended to use:
-
-```text
-small / medium
+```bash
+python -m pip install -r requirements-dev.txt
+pyinstaller --noconfirm --clean ArabicAudioTranscriber.spec
 ```
 
-because large-v3 may be slow on low-performance machines.
+PyInstaller builds are platform-specific. Windows packages must be created on Windows, while the Apple Silicon package is created on an Apple Silicon macOS runner.
 
----
+## Release Workflow
 
-## Typical Use Cases
+The GitHub Actions workflow builds Windows x64 and macOS Apple Silicon archives. Pushing a version tag creates or updates the matching GitHub Release and uploads both packages:
 
-	•	Arabic news transcription
-	•	Lecture transcription
-	•	Vocabulary extraction
-	•	Subtitle generation
-	•	Listening practice materials
+```bash
+git tag v1.1.0
+git push origin v1.1.0
+```
 
----
+The workflow can also be started manually to produce downloadable build artifacts without creating a release.
 
 ## Roadmap
 
-- [x] GUI version
-- [x] Windows / macOS / Linux executable release workflow
-- [x] Model selection in interface
-- [ ] Access the API of other AI platforms
+- [x] Desktop GUI
+- [x] Windows and macOS release packages
+- [x] Local model detection and custom storage
+- [x] Optional AI correction, translation, and diacritization
+- [ ] Support additional AI API providers
 - [ ] Batch transcription
-
-
----
-
-## Creating a Release（维护者）
-
-推送以 `v` 开头的 tag 后，GitHub Actions 会分别构建 Windows、macOS（Apple Silicon）和 Linux 安装包，并自动附加到对应的 GitHub Release：
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-也可以在 Actions 页手动运行 `Build release`，仅生成可下载的构建产物，不创建 Release。
-
----
-
-<details>
-<summary>Chinese Description / 中文说明</summary>
-
-一个**面向电脑小白**的阿拉伯语音频/视频转写工具，基于 `faster-whisper`，支持导出：
-
-- `.txt` 纯文本
-- `.srt` 字幕文件
-
-它适合这些场景：
-
-- 阿拉伯语新闻、播客、采访、课程音频转写
-- 视频字幕初稿生成
-- 本地离线转写（音频不会上传到外部服务器）
-
-</details>
-
 
 ## License
 
