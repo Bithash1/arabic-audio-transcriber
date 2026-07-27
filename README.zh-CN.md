@@ -164,8 +164,8 @@ PyInstaller 产物与运行平台相关：Windows 安装包需要在 Windows 上
 GitHub Actions 会生成 Windows x64 和 macOS Apple Silicon 压缩包。推送版本标签后，会创建或更新相应 Release，并上传两个平台的文件：
 
 ```bash
-git tag v1.1.0
-git push origin v1.1.0
+git tag v1.1.1
+git push origin v1.1.1
 ```
 
 也可以手动运行工作流，只生成可下载的构建产物而不创建 Release。
