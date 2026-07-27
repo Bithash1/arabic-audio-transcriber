@@ -164,8 +164,8 @@ PyInstaller builds are platform-specific. Windows packages must be created on Wi
 The GitHub Actions workflow builds Windows x64 and macOS Apple Silicon archives. Pushing a version tag creates or updates the matching GitHub Release and uploads both packages:
 
 ```bash
-git tag v1.1.0
-git push origin v1.1.0
+git tag v1.1.1
+git push origin v1.1.1
 ```
 
 The workflow can also be started manually to produce downloadable build artifacts without creating a release.
